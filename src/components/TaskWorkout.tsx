@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Play, Pause, Plus, Trash2, Save, Clock } from 'lucide-react';
+import { Play, Pause, Plus, Trash2, Save, Clock, Edit2 } from 'lucide-react';
 import { WorkoutTask, TaskItem } from '../types';
 
 export default function TaskWorkout() {
@@ -13,6 +13,11 @@ export default function TaskWorkout() {
   const [isPaused, setIsPaused] = useState(false);
   const [currentItemIndex, setCurrentItemIndex] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editItemName, setEditItemName] = useState('');
+  const [editItemDuration, setEditItemDuration] = useState('');
 
   useEffect(() => {
     const saved = localStorage.getItem('workoutTasks');
@@ -27,22 +32,41 @@ export default function TaskWorkout() {
     }
   }, [tasks]);
 
+  const speakText = (text: string) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
   useEffect(() => {
-    if (!isRunning || isPaused) return;
+    if (!isRunning || isPaused || !selectedTask) return;
 
     const interval = setInterval(() => {
       setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          if (selectedTask && currentItemIndex < selectedTask.items.length - 1) {
+        const newTime = prev - 1;
+
+        if (newTime <= 10 && newTime > 0 && prev > 10) {
+          speakText(newTime.toString());
+        }
+
+        if (newTime <= 0) {
+          if (currentItemIndex < selectedTask.items.length - 1) {
             setCurrentItemIndex((i) => i + 1);
-            return selectedTask.items[currentItemIndex + 1].duration;
+            const nextItem = selectedTask.items[currentItemIndex + 1];
+            speakText(`Next: ${nextItem.name}`);
+            return nextItem.duration;
           } else {
             setIsRunning(false);
             setCurrentItemIndex(0);
+            speakText('Task completed');
             return 0;
           }
         }
-        return prev - 1;
+        return newTime;
       });
     }, 1000);
 
@@ -95,6 +119,34 @@ export default function TaskWorkout() {
 
   const deleteItem = (id: string) => {
     setItems(items.filter(i => i.id !== id));
+  };
+
+  const startEditTask = (task: WorkoutTask) => {
+    setEditingTaskId(task.id);
+    setEditTitle(task.title);
+  };
+
+  const saveEditTask = (taskId: string) => {
+    setTasks(tasks.map(t =>
+      t.id === taskId ? { ...t, title: editTitle } : t
+    ));
+    setEditingTaskId(null);
+    setEditTitle('');
+  };
+
+  const startEditItem = (item: TaskItem) => {
+    setEditingItemId(item.id);
+    setEditItemName(item.name);
+    setEditItemDuration(item.duration.toString());
+  };
+
+  const saveEditItem = (itemId: string) => {
+    setItems(items.map(i =>
+      i.id === itemId ? { ...i, name: editItemName, duration: parseInt(editItemDuration) || 0 } : i
+    ));
+    setEditingItemId(null);
+    setEditItemName('');
+    setEditItemDuration('');
   };
 
   const startWorkout = (task: WorkoutTask) => {
@@ -287,20 +339,61 @@ export default function TaskWorkout() {
                 <h3 className="font-medium text-gray-700 mb-3">Items ({items.length})</h3>
                 <div className="space-y-2">
                   {items.map((item, idx) => (
-                    <div key={item.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-gray-500">{idx + 1}.</span>
-                        <div>
-                          <div className="font-medium text-gray-800">{item.name}</div>
-                          <div className="text-sm text-gray-500">{formatTime(item.duration)}</div>
+                    <div key={item.id}>
+                      {editingItemId === item.id ? (
+                        <div className="bg-white p-3 rounded-lg border-2 border-blue-500 space-y-2">
+                          <input
+                            type="text"
+                            value={editItemName}
+                            onChange={(e) => setEditItemName(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                          />
+                          <input
+                            type="number"
+                            value={editItemDuration}
+                            onChange={(e) => setEditItemDuration(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => saveEditItem(item.id)}
+                              className="flex-1 px-2 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingItemId(null)}
+                              className="flex-1 px-2 py-1 bg-gray-400 text-white text-sm rounded hover:bg-gray-500 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <button
-                        onClick={() => deleteItem(item.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      ) : (
+                        <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
+                          <div className="flex items-center gap-3 flex-1">
+                            <span className="text-sm font-medium text-gray-500">{idx + 1}.</span>
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-800">{item.name}</div>
+                              <div className="text-sm text-gray-500">{formatTime(item.duration)}</div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => startEditItem(item)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button
+                              onClick={() => deleteItem(item.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -333,13 +426,49 @@ export default function TaskWorkout() {
           {tasks.map((task) => (
             <div key={task.id} className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow">
               <div className="flex justify-between items-start mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">{task.title}</h3>
-                <button
-                  onClick={() => deleteTask(task.id)}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                  <Trash2 size={18} />
-                </button>
+                {editingTaskId === task.id ? (
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="flex-1 px-3 py-2 border-2 border-blue-500 rounded-lg focus:outline-none mr-2"
+                  />
+                ) : (
+                  <h3 className="text-xl font-semibold text-gray-800">{task.title}</h3>
+                )}
+                <div className="flex gap-2">
+                  {editingTaskId === task.id ? (
+                    <>
+                      <button
+                        onClick={() => saveEditTask(task.id)}
+                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                      >
+                        <Save size={18} />
+                      </button>
+                      <button
+                        onClick={() => setEditingTaskId(null)}
+                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => startEditTask(task)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button
+                        onClick={() => deleteTask(task.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="mb-4 space-y-2">
