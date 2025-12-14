@@ -43,22 +43,27 @@ export default function TaskWorkout() {
   };
 
   useEffect(() => {
+    if (isRunning && selectedTask && currentItemIndex > 0) {
+      const currentItem = selectedTask.items[currentItemIndex];
+      speakText(`${currentItem.name}`);
+    }
+  }, [currentItemIndex, isRunning, selectedTask]);
+
+  useEffect(() => {
     if (!isRunning || isPaused || !selectedTask) return;
 
     const interval = setInterval(() => {
       setTimeRemaining((prev) => {
         const newTime = prev - 1;
 
-        if (newTime <= 10 && newTime > 0 && prev > 10) {
+        if (newTime <= 10 && newTime > 0) {
           speakText(newTime.toString());
         }
 
         if (newTime <= 0) {
           if (currentItemIndex < selectedTask.items.length - 1) {
             setCurrentItemIndex((i) => i + 1);
-            const nextItem = selectedTask.items[currentItemIndex + 1];
-            speakText(`Next: ${nextItem.name}`);
-            return nextItem.duration;
+            return selectedTask.items[currentItemIndex + 1].duration;
           } else {
             setIsRunning(false);
             setCurrentItemIndex(0);
@@ -341,36 +346,45 @@ export default function TaskWorkout() {
                   {items.map((item, idx) => (
                     <div key={item.id}>
                       {editingItemId === item.id ? (
-                        <div className="bg-white p-3 rounded-lg border-2 border-blue-500 space-y-2">
-                          <input
-                            type="text"
-                            value={editItemName}
-                            onChange={(e) => setEditItemName(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
-                          />
-                          <input
-                            type="number"
-                            value={editItemDuration}
-                            onChange={(e) => setEditItemDuration(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
-                          />
+                        <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-500 space-y-3">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Exercise/Interval Name</label>
+                            <input
+                              type="text"
+                              value={editItemName}
+                              onChange={(e) => setEditItemName(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Duration (seconds)</label>
+                            <input
+                              type="number"
+                              value={editItemDuration}
+                              onChange={(e) => setEditItemDuration(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                            />
+                          </div>
                           <div className="flex gap-2">
                             <button
                               onClick={() => saveEditItem(item.id)}
-                              className="flex-1 px-2 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                              className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
                             >
                               Save
                             </button>
                             <button
                               onClick={() => setEditingItemId(null)}
-                              className="flex-1 px-2 py-1 bg-gray-400 text-white text-sm rounded hover:bg-gray-500 transition-colors"
+                              className="flex-1 px-3 py-2 bg-gray-400 text-white text-sm font-medium rounded hover:bg-gray-500 transition-colors"
                             >
                               Cancel
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
+                        <div
+                          onClick={() => startEditItem(item)}
+                          className="cursor-pointer flex items-center justify-between bg-white p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-md transition-all"
+                        >
                           <div className="flex items-center gap-3 flex-1">
                             <span className="text-sm font-medium text-gray-500">{idx + 1}.</span>
                             <div className="flex-1">
@@ -380,13 +394,19 @@ export default function TaskWorkout() {
                           </div>
                           <div className="flex gap-2">
                             <button
-                              onClick={() => startEditItem(item)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEditItem(item);
+                              }}
                               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                             >
                               <Edit2 size={16} />
                             </button>
                             <button
-                              onClick={() => deleteItem(item.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteItem(item.id);
+                              }}
                               className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             >
                               <Trash2 size={18} />
